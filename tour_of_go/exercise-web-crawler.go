@@ -18,12 +18,13 @@ type Cache struct {
 
 // Crawl uses fetcher to recursively crawl
 // pages starting with url, to a maximum of depth.
-func Crawl(url string, depth int, fetcher Fetcher, cache Cache) {
+func Crawl(url string, depth int, fetcher Fetcher, cache *Cache) {
 	if depth <= 0 {
 		return
 	}
 	cache.mux.Lock()
 	_, ok := cache.visited[url]
+
 	if ok {
 		cache.mux.Unlock()
 		return
@@ -32,6 +33,7 @@ func Crawl(url string, depth int, fetcher Fetcher, cache Cache) {
 	cache.visited[url] = true
 	cache.mux.Unlock()
 
+	fmt.Printf("Fetching %q\n", url)
 	body, urls, err := fetcher.Fetch(url)
 
 	if err != nil {
@@ -41,11 +43,13 @@ func Crawl(url string, depth int, fetcher Fetcher, cache Cache) {
 
 	fmt.Printf("found: %s %q\n", url, body)
 	done := make(chan bool)
-	for _, u := range urls {
-		go func(url string) {
-			Crawl(u, depth-1, fetcher, cache)
+	fmt.Printf("URLS: %s \n", urls)
+	for i, v := range urls {
+		go func(index int, url string) {
+			fmt.Printf("Goroutine number %v - %v\n", index, url)
+			Crawl(url, depth-1, fetcher, cache)
 			done <- true
-		}(u)
+		}(i, v)
 	}
 
 	for i := range urls {
@@ -53,13 +57,14 @@ func Crawl(url string, depth int, fetcher Fetcher, cache Cache) {
 	}
 
 	fmt.Printf("<- Done with %v\n", url)
-
-	return
 }
 
 func main() {
 	cache := Cache{visited: make(map[string]bool)}
-	Crawl("https://golang.org/", 4, fetcher, cache)
+	Crawl("https://golang.org/", 4, fetcher, &cache)
+	for i := range cache.visited {
+		fmt.Printf("%v \n", i)
+	}
 }
 
 // fakeFetcher is Fetcher that returns canned results.
@@ -110,4 +115,3 @@ var fetcher = fakeFetcher{
 		},
 	},
 }
-
